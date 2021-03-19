@@ -7,3 +7,4 @@ function setTime10(dosomething){setTimeout(function (){dosomething();},1000);}
 function setTime20(dosomething){setTimeout(function (){dosomething();},2000);}
 //setTime(1,2,3,6,10,20)
 //
+//
