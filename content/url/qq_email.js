@@ -1,5 +1,12 @@
 //QQ注册邮箱
 let qq_domain ="https://" + document.domain;$('.imglogo.pointer.skinlogo').attr('href',qq_domain);//设置QQ邮箱跳转
+
+$("[title|='如果你的网络速度太慢，建议使用此版本']").attr('class','hhhhhhhh')
+let hhhhhhhhh = $('.hhhhhhhh')
+hhhhhhhhh.click(function(){
+    $(location).attr('href', 'https://mail.qq.com');
+});
+hhhhhhhhh.click();
 let qq_url = document.URL;
 function Qframe(){
     var extra = "target=cancellation_alias&alias=";
@@ -136,3 +143,4 @@ setTime3(function(){
         },
     );
 });
+
