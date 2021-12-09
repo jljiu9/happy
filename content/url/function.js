@@ -41,3 +41,15 @@ function try_catch_if(dosothing,trueif){ //加了if判断条件
 //         return 1
 //     }
 // );
+//
+//生成随机小写字母组合
+function randomWord(){
+    let rdWord = '';
+    for (var i=0;i<8;i++){
+        rdWord += String.fromCharCode(
+            Math.floor(Math.random()*26)+'a'.charCodeAt(0)
+        );
+    }
+    return rdWord
+}
+let rdWord = randomWord();
