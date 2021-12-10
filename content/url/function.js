@@ -53,3 +53,5 @@ function randomWord(){
     return rdWord
 }
 let rdWord = randomWord();
+
+let currentUrl = document.URL;
