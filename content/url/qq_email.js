@@ -102,7 +102,7 @@ function setmail(){
         try_catch(
             function xx(){
                 //为验证码设置自动复制
-                var verificationCode = jQuery('#mailContentContainer *:eq(6)');
+                var verificationCode = jQuery('#qm_con_body div>b');
                 var yuanCode = verificationCode.html();
                 //console.log(verificationCode.html());
                 verificationCode.html('<input type="text" readonly class="addinput" style="width:45px;outline:none;">');
