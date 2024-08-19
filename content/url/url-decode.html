@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL 编码/解码工具</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        button { margin: 10px 0; }
+        #result { margin-top: 20px; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>URL 编码/解码工具</h1>
+    <p>点击按钮从剪贴板读取链接并进行编码或解码</p>
+    <button onclick="requestPermission()">请求持久剪贴板权限</button>
+    <button onclick="processClipboard('encode')">编码剪贴板链接</button>
+    <button onclick="processClipboard('decode')">解码剪贴板链接</button>
+    <div id="result"></div>
+
+    <script>
+        async function requestPermission() {
+            try {
+                const result = await navigator.permissions.query({name: 'clipboard-read'});
+                if (result.state === 'granted') {
+                    alert('已获得持久剪贴板访问权限！');
+                } else if (result.state === 'prompt') {
+                    await navigator.clipboard.readText();
+                    alert('请在弹出的对话框中选择"允许"以获得持久权限。');
+                }
+            } catch (err) {
+                console.error('请求权限失败:', err);
+                alert('无法请求持久权限。您的浏览器可能不支持此功能。');
+            }
+        }
+
+        async function processClipboard(action) {
+            try {
+                const text = await navigator.clipboard.readText();
+                let result;
+                if (action === 'encode') {
+                    result = encodeURIComponent(text);
+                } else {
+                    result = decodeURIComponent(text);
+                }
+                document.getElementById('result').innerHTML = `
+                    <h3>${action === 'encode' ? '编码' : '解码'}结果:</h3>
+                    <p>${result}</p>
+                `;
+            } catch (err) {
+                console.error('无法读取剪贴板内容:', err);
+                alert('无法读取剪贴板内容。请确保您已授予网页访问剪贴板的权限。');
+            }
+        }
+    </script>
+</body>
+</html>
