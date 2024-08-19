@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>俄罗斯方块</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            display: flex;
+            gap: 20px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2); /* 增强阴影效果 */
+            padding: 20px;
+            border-radius: 15px; /* 增加圆角 */
+            background-color: white;
+        }
+        #game-board {
+            border: 1px solid black;
+            border-radius: 5px; /* 为游戏板添加轻微圆角 */
+        }
+        #side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        #next-piece {
+            width: 120px;
+            height: 120px;
+            border: 1px solid black;
+            border-radius: 5px; /* 为下一个方块预览添加圆角 */
+        }
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 10;
+        }
+        #start-button, #difficulty-select {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 10px;
+            border-radius: 5px; /* 为按钮和选择框添加圆角 */
+        }
+        .info {
+            font-size: 18px;
+            margin: 5px 0;
+        }
+        #touch-controls {
+            display: none;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .touch-button {
+            padding: 15px;
+            font-size: 24px;
+            background-color: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 5px;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-board"></canvas>
+        <div id="side-panel">
+            <canvas id="next-piece"></canvas>
+            <div>分数: <span id="score">0</span></div>
+            <div>最高分: <span id="high-score">0</span></div>
+            <div>等级: <span id="level">1</span></div>
+            <div>状态: <span id="game-status">未开始</span></div>
+            <div id="timer">00:00</div>
+        </div>
+    </div>
+    <div id="start-screen">
+        <h1>俄罗斯方块</h1>
+        <p>使用方向键移动和旋转方块，空格键快速下落，P键暂停游戏</p>
+        <select id="difficulty-select">
+            <option value="easy">简单</option>
+            <option value="medium">中等</option>
+            <option value="hard">困难</option>
+        </select>
+        <button id="start-button">开始游戏</button>
+    </div>
+    <div id="touch-controls">
+        <button class="touch-button" id="left-button">←</button>
+        <button class="touch-button" id="rotate-button">↻</button>
+        <button class="touch-button" id="right-button">→</button>
+        <button class="touch-button" id="down-button">↓</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('game-board');
+        const ctx = canvas.getContext('2d');
+        const nextPieceCanvas = document.getElementById('next-piece');
+        const nextPieceCtx = nextPieceCanvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('high-score');
+        const levelElement = document.getElementById('level');
+        const gameStatusElement = document.getElementById('game-status');
+        const startScreen = document.getElementById('start-screen');
+        const startButton = document.getElementById('start-button');
+        const gridSize = 30;
+        const cols = 10;
+        const rows = 20;
+
+        canvas.width = cols * gridSize;
+        canvas.height = rows * gridSize;
+        nextPieceCanvas.width = 120;
+        nextPieceCanvas.height = 120;
+
+        // 定义方块形状和颜色 (更淡的颜色)
+        const shapes = [
+            { shape: [[1,1,1,1]], color: '#00FFFF' }, // 青色
+            { shape: [[1,1],[1,1]], color: '#FFA500' }, // 橙色 (替换黄色)
+            { shape: [[1,1,1],[0,1,0]], color: '#800080' }, // 紫色
+            { shape: [[1,1,1],[1,0,0]], color: '#0000FF' }, // 蓝色
+            { shape: [[1,1,1],[0,0,1]], color: '#FF4500' }, // 橘红色
+            { shape: [[1,1,0],[0,1,1]], color: '#008000' }, // 绿色
+            { shape: [[0,1,1],[1,1,0]], color: '#FF0000' }  // 红色
+        ];
+
+        let currentShape;
+        let nextShape;
+        let currentX;
+        let currentY;
+        let board;
+        let score = 0;
+        let level = 1;
+        let speed = 500;
+        let gameInterval;
+        let isPaused = false;
+        let highScore = localStorage.getItem('tetrisHighScore') || 0;
+
+        let ghostY;
+        let startTime;
+        let timerInterval;
+
+        function init() {
+            board = Array(rows).fill().map(() => Array(cols).fill(0));
+            score = 0;
+            level = 1;
+            speed = 500;
+            updateScore();
+            updateLevel();
+            nextShape = getRandomShape();
+            newShape();
+            draw();
+            isPaused = false;
+            updateGameStatus();
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(gameLoop, speed);
+            
+            // 重置并启动计时器
+            startTime = Date.now();
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function updateTimer() {
+            const currentTime = Date.now();
+            const elapsedTime = Math.floor((currentTime - startTime) / 1000);
+            const minutes = Math.floor(elapsedTime / 60).toString().padStart(2, '0');
+            const seconds = (elapsedTime % 60).toString().padStart(2, '0');
+            document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+        }
+
+        function getRandomShape() {
+            return shapes[Math.floor(Math.random() * shapes.length)];
+        }
+
+        function newShape() {
+            currentShape = nextShape;
+            nextShape = getRandomShape();
+            currentX = Math.floor(cols / 2) - Math.floor(currentShape.shape[0].length / 2);
+            currentY = 0;
+            updateGhostPiece();
+            drawNextPiece();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制已固定的方块
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    if (board[y][x]) {
+                        ctx.fillStyle = board[y][x];
+                        ctx.globalAlpha = 0.5; // 设置透明度为0.5
+                        ctx.fillRect(x * gridSize, y * gridSize, gridSize - 1, gridSize - 1);
+                        ctx.globalAlpha = 1; // 重置透明度
+                    }
+                }
+            }
+
+            // 绘制幽灵块
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            for (let y = 0; y < currentShape.shape.length; y++) {
+                for (let x = 0; x < currentShape.shape[y].length; x++) {
+                    if (currentShape.shape[y][x]) {
+                        ctx.fillRect((currentX + x) * gridSize, (ghostY + y) * gridSize, gridSize - 1, gridSize - 1);
+                    }
+                }
+            }
+
+            // 绘制当前方块
+            ctx.fillStyle = currentShape.color;
+            ctx.globalAlpha = 0.5; // 设置透明度为0.5
+            for (let y = 0; y < currentShape.shape.length; y++) {
+                for (let x = 0; x < currentShape.shape[y].length; x++) {
+                    if (currentShape.shape[y][x]) {
+                        ctx.fillRect((currentX + x) * gridSize, (currentY + y) * gridSize, gridSize - 1, gridSize - 1);
+                    }
+                }
+            }
+            ctx.globalAlpha = 1; // 重置透明度
+        }
+
+        function drawNextPiece() {
+            nextPieceCtx.clearRect(0, 0, nextPieceCanvas.width, nextPieceCanvas.height);
+            nextPieceCtx.fillStyle = nextShape.color;
+            const offsetX = (120 - nextShape.shape[0].length * gridSize) / 2;
+            const offsetY = (120 - nextShape.shape.length * gridSize) / 2;
+            for (let y = 0; y < nextShape.shape.length; y++) {
+                for (let x = 0; x < nextShape.shape[y].length; x++) {
+                    if (nextShape.shape[y][x]) {
+                        nextPieceCtx.fillRect(offsetX + x * gridSize, offsetY + y * gridSize, gridSize - 1, gridSize - 1);
+                    }
+                }
+            }
+        }
+
+        function gameLoop() {
+            if (!isPaused) {
+                moveDown();
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            updateGameStatus();
+        }
+
+        function updateGameStatus() {
+            gameStatusElement.textContent = isPaused ? '已暂停' : '进行中';
+        }
+
+        function moveDown() {
+            if (canMove(0, 1)) {
+                currentY++;
+                updateGhostPiece();
+            } else {
+                freeze();
+                clearLines();
+                newShape();
+                if (!canMove(0, 0)) {
+                    // 游戏结束
+                    updateHighScore();
+                    alert('游戏结束! 最终得分: ' + score);
+                    showStartScreen();
+                }
+            }
+            draw();
+        }
+
+        function updateGhostPiece() {
+            ghostY = currentY;
+            while (canMove(0, 1, ghostY)) {
+                ghostY++;
+            }
+        }
+
+        function canMove(offsetX, offsetY, testY = currentY) {
+            for (let y = 0; y < currentShape.shape.length; y++) {
+                for (let x = 0; x < currentShape.shape[y].length; x++) {
+                    if (currentShape.shape[y][x]) {
+                        let newX = currentX + x + offsetX;
+                        let newY = testY + y + offsetY;
+                        if (newX < 0 || newX >= cols || newY >= rows || (newY >= 0 && board[newY][newX])) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function freeze() {
+            for (let y = 0; y < currentShape.shape.length; y++) {
+                for (let x = 0; x < currentShape.shape[y].length; x++) {
+                    if (currentShape.shape[y][x]) {
+                        board[currentY + y][currentX + x] = currentShape.color;
+                    }
+                }
+            }
+        }
+
+        function clearLines() {
+            let linesCleared = 0;
+            for (let y = rows - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell)) {
+                    board.splice(y, 1);
+                    board.unshift(Array(cols).fill(0));
+                    linesCleared++;
+                }
+            }
+            if (linesCleared > 0) {
+                score += [40, 100, 300, 1200][linesCleared - 1] * level;
+                updateScore();
+                checkLevelUp();
+            }
+        }
+
+        function updateScore() {
+            scoreElement.textContent = score;
+        }
+
+        function updateLevel() {
+            levelElement.textContent = level;
+        }
+
+        function updateHighScore() {
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('tetrisHighScore', highScore);
+            }
+            highScoreElement.textContent = highScore;
+        }
+
+        function checkLevelUp() {
+            if (score >= level * 1000) {
+                level++;
+                updateLevel();
+                speed = Math.max(50, speed - 20); // 最低速度限制为50ms
+                clearInterval(gameInterval);
+                gameInterval = setInterval(gameLoop, speed);
+            }
+        }
+
+        function showStartScreen() {
+            startScreen.style.display = 'flex';
+            clearInterval(gameInterval);
+            clearInterval(timerInterval);
+            gameStatusElement.textContent = '未开始';
+            document.getElementById('timer').textContent = '00:00';
+            document.addEventListener('keydown', startGameOnEnter);
+            // 设置初始难度为困难
+            document.getElementById('difficulty-select').value = 'hard';
+        }
+
+        function hideStartScreen() {
+            startScreen.style.display = 'none';
+            document.removeEventListener('keydown', startGameOnEnter);
+        }
+
+        function startGame() {
+            hideStartScreen();
+            const difficulty = document.getElementById('difficulty-select').value;
+            setDifficulty(difficulty);
+            init();
+        }
+
+        function setDifficulty(difficulty) {
+            switch(difficulty) {
+                case 'easy':
+                    speed = 300;
+                    break;
+                case 'medium':
+                    speed = 200;
+                    break;
+                case 'hard':
+                    speed = 80;
+                    break;
+            }
+        }
+
+        function startGameOnEnter(e) {
+            if (e.key === 'Enter') {
+                startGame();
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (!isPaused || e.keyCode === 80) { // 允许在暂停时使用 P 键
+                switch(e.keyCode) {
+                    case 37: // 左
+                        if (canMove(-1, 0)) {
+                            currentX--;
+                            updateGhostPiece();
+                        }
+                        break;
+                    case 39: // 右
+                        if (canMove(1, 0)) {
+                            currentX++;
+                            updateGhostPiece();
+                        }
+                        break;
+                    case 40: // 下
+                        if (canMove(0, 1)) {
+                            currentY++;
+                            updateGhostPiece();
+                        }
+                        break;
+                    case 38: // 上 (旋转)
+                        rotate();
+                        updateGhostPiece();
+                        break;
+                    case 32: // 空格 (硬降)
+                        hardDrop();
+                        break;
+                    case 80: // P (暂停/继续)
+                        togglePause();
+                        break;
+                }
+                draw();
+            }
+        });
+
+        function rotate() {
+            let newShape = currentShape.shape[0].map((_, i) => currentShape.shape.map(row => row[i]).reverse());
+            if (canRotate(newShape)) {
+                currentShape.shape = newShape;
+                updateGhostPiece();
+            }
+        }
+
+        function canRotate(newShape) {
+            for (let y = 0; y < newShape.length; y++) {
+                for (let x = 0; x < newShape[y].length; x++) {
+                    if (newShape[y][x]) {
+                        let newX = currentX + x;
+                        let newY = currentY + y;
+                        if (newX < 0 || newX >= cols || newY >= rows || (newY >= 0 && board[newY][newX])) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function hardDrop() {
+            while (canMove(0, 1)) {
+                currentY++;
+            }
+            moveDown();
+        }
+
+        // 触摸控制
+        document.getElementById('left-button').addEventListener('touchstart', () => moveHorizontal(-1));
+        document.getElementById('right-button').addEventListener('touchstart', () => moveHorizontal(1));
+        document.getElementById('rotate-button').addEventListener('touchstart', rotate);
+        document.getElementById('down-button').addEventListener('touchstart', moveDown);
+
+        function moveHorizontal(dir) {
+            if (canMove(dir, 0)) {
+                currentX += dir;
+                updateGhostPiece();
+                draw();
+            }
+        }
+
+        // 检测是否在移动设备上
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+            document.getElementById('touch-controls').style.display = 'flex';
+        }
+
+        startButton.addEventListener('click', startGame);
+
+        // 加载最高分
+        highScore = localStorage.getItem('tetrisHighScore') || 0;
+        highScoreElement.textContent = highScore;
+
+        // 初始显示开始界面
+        showStartScreen();
+    </script>
+</body>
+</html>
